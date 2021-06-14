@@ -69,10 +69,6 @@
     }
 
     addObjectRef = function (object) {
-
- if (object === null) {
-     let x = object;
-     }
         let id = objectRefId++;
         objectRefs[id] = object;
         let objectRef = {};
@@ -183,7 +179,7 @@
     public.createObject = function (parent, interface, ...args) {
         let parentObject = getParentObject(parent);;
         let interfaceObject = getPropertyObject(parentObject, interface);
-        let createdObject = new interfaceObject(args);
+        let createdObject = new interfaceObject(...args);
         let objectRef = addObjectRef(createdObject);
         return objectRef;
     }
@@ -277,14 +273,15 @@
      */
     public.setProperty = function (parent, property, value) {
         let parentObject = getParentObject(parent);
+    //    let valueObject;
+    //    if (typeof (value) === 'string') {
+    //        valueObject = getPropertyObject(window, value);
+    //    } else {
+    //        valueObject = value;
+    //    }
+    //    parentObject[property] = valueObject;
+        parentObject[property] = value;
 
-        let valueObject;
-        if (typeof (value) === 'string') {
-            valueObject = getPropertyObject(window, value);
-        } else {
-            valueObject = value;
-        }
-        parentObject[property] = valueObject;
     }
 
     /**

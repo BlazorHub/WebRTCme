@@ -1,9 +1,11 @@
-﻿using MvvmHelpers.Commands;
+﻿//using Microsoft.AspNetCore.Components.Forms;
+using MvvmHelpers.Commands;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -23,18 +25,21 @@ namespace WebRTCme.Middleware
         // A reference is required here. otherwise binding does not work.
         public ObservableCollection<DataParameters> DataParametersList { get; set; }
 
+        private readonly IWebRtcConnection _webRtcConnection;
         private readonly ISignallingServerService _signallingServerService;
-        public readonly IDataManagerService DataManager;
+        public readonly IDataManagerService _dataManagerService;
         private readonly INavigationService _navigationService;
         private IDisposable _connectionDisposer;
         private Action _reRender;
 
-        public ChatViewModel(ISignallingServerService signallingServerService, IDataManagerService dataManager, 
+        public ChatViewModel(IWebRtcConnection webRtcConnection, ISignallingServerService signallingServerService, 
+            IDataManagerService dataManagerService, 
             INavigationService navigationService)
         {
             _signallingServerService = signallingServerService;
-             DataManager = dataManager;
-            DataParametersList = dataManager.DataParametersList;
+            _webRtcConnection = webRtcConnection;
+            _dataManagerService = dataManagerService;
+            DataParametersList = dataManagerService.DataParametersList;
             _navigationService = navigationService;
         }
 
@@ -95,25 +100,38 @@ namespace WebRTCme.Middleware
             }
         }
 
-        public void Send()
+        public Task SendMessageAsync()
         {
             if (!string.IsNullOrEmpty(OutgoingText) && !string.IsNullOrWhiteSpace(OutgoingText))
             {
-                DataManager.SendString(OutgoingText);
+                _dataManagerService.SendMessage(new Message { Text = OutgoingText });
                 OutgoingText = string.Empty;
             }
+
+            return Task.CompletedTask;
         }
 
-        public ICommand SendCommand => new AsyncCommand(() => 
+        public ICommand SendMessageCommand => new AsyncCommand(async () => 
         {
-            Send();
-            return Task.CompletedTask;
+            await SendMessageAsync();
         });
 
+        public void SendMessage()
+        {
+        }
+
+        public Task SendFileAsync(File file, Stream stream)
+        {
+            return _dataManagerService.SendFileAsync(file, stream);
+        }
+
+        public void SendLink()
+        {
+        }
 
         private void Connect(ConnectionRequestParameters connectionRequestParameters)
         {
-            _connectionDisposer = _signallingServerService.ConnectionRequest(connectionRequestParameters).Subscribe(
+            _connectionDisposer = _webRtcConnection.ConnectionRequest(connectionRequestParameters).Subscribe(
                 onNext: (peerResponseParameters) =>
                 {
                     switch (peerResponseParameters.Code)
@@ -125,16 +143,17 @@ namespace WebRTCme.Middleware
                                 Console.WriteLine($"--------------- DataChannel: {dataChannel.Label} " +
                                     $"state:{dataChannel.ReadyState}");
 
-                                DataManager.AddPeer(peerResponseParameters.PeerUserName, dataChannel);
+                                _dataManagerService.AddPeer(peerResponseParameters.PeerUserName, dataChannel);
                             }
                             break;
 
                         case PeerResponseCode.PeerLeft:
+                            _dataManagerService.RemovePeer(peerResponseParameters.PeerUserName);
                             System.Diagnostics.Debug.WriteLine($"************* APP PeerLeft");
-                            DataManager.RemovePeer(peerResponseParameters.PeerUserName);
                             break;
 
                         case PeerResponseCode.PeerError:
+                            _dataManagerService.RemovePeer(peerResponseParameters.PeerUserName);
                             System.Diagnostics.Debug.WriteLine($"************* APP PeerError");
                             break;
                     }
@@ -154,6 +173,7 @@ namespace WebRTCme.Middleware
 
         private void Disconnect()
         {
+            _dataManagerService.ClearPeers();
             _connectionDisposer.Dispose();
         }
     }

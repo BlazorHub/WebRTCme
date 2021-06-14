@@ -19,6 +19,7 @@ namespace WebRTCme.Bindings.Blazor.Extensions
             };
             if (args != null)
             {
+                ////args = args.Where(a => a is not null).ToArray();
                 invokeParams = invokeParams.Concat(args).ToArray();
             }
             var jsObjectRef = jsRuntime.Invoke<JsObjectRef>("JsInterop.createObject", invokeParams);
@@ -53,7 +54,7 @@ namespace WebRTCme.Bindings.Blazor.Extensions
             object parent, string property)
         {
             var jsObjectRef = jsRuntime.InvokeAsync<JsObjectRef>(
-                "DotNetInterop.getPropertyObjectRef",
+                "JsInterop.getPropertyObjectRef",
                 new object[]
                 {
                     parent,
@@ -210,11 +211,11 @@ namespace WebRTCme.Bindings.Blazor.Extensions
             }
         }
 
-        private static async void Sync<TValue>(IJSRuntime jsRuntime, string identifier, params object[] args)
-        {
-            TValue value = default(TValue);
-            value = await jsRuntime.InvokeAsync<TValue>(identifier, args);
-        }
+        //private static async void Sync<TValue>(IJSRuntime jsRuntime, string identifier, params object[] args)
+        //{
+        //    TValue value = default(TValue);
+        //    value = await jsRuntime.InvokeAsync<TValue>(identifier, args).Wait();
+        //}
 
         public static void InvokeVoid(this IJSRuntime jsRuntime, string identifier, params object[] args)
         {

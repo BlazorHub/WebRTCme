@@ -2,15 +2,12 @@
 
   <PropertyGroup>
     <!--<TargetFrameworks>netstandard2.1; net5.0; net6.0</TargetFrameworks>-->
-    <TargetFrameworks>netstandard2.1; net5.0</TargetFrameworks>
-    <TargetsForTfmSpecificBuildOutput>
-      $(TargetsForTfmSpecificBuildOutput);CopyProjectReferencesToPackage
-    </TargetsForTfmSpecificBuildOutput>
+    <TargetFrameworks>net5.0</TargetFrameworks>
     <RazorLangVersion>3.0</RazorLangVersion>
-    <RootNamespace>WebRTCme.Middleware</RootNamespace>
+    <RootNamespace>WebRTCme.Middleware.Blazor</RootNamespace>
     <AssemblyName>WebRTCme.Middleware.Blazor</AssemblyName>
     <LangVersion>9.0</LangVersion>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>melihercan</Authors>
     <Description>Services layer between Blazor applications and WebRTCme library.</Description>
     <Copyright>melihercan 2021</Copyright>
@@ -20,18 +17,20 @@
     <RepositoryUrl>https://github.com/melihercan/WebRTCme/tree/master/WebRTCme.Middleware/WebRTCme.Midddleware.Blazor</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>WebRTC .NET Blazor</PackageTags>
+    <Version>1.0.1</Version>
+    <PackageReleaseNotes>Bug fixes.</PackageReleaseNotes>
   </PropertyGroup>
 
 
   <ItemGroup Condition=" $(TargetFramework.StartsWith('netstandard')) ">
-	  <PackageReference Include="Microsoft.AspNetCore.Components" Version="3.1.12" />
-	  <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="3.1.12" />
+	  <PackageReference Include="Microsoft.AspNetCore.Components" Version="3.1.16" />
+	  <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="3.1.16" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup Condition=" $(TargetFramework.StartsWith('net5')) ">
-	  <PackageReference Include="Microsoft.AspNetCore.Components" Version="5.0.5" />
-	  <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="5.0.5" />
+	  <PackageReference Include="Microsoft.AspNetCore.Components" Version="5.0.7" />
+	  <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="5.0.7" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="5.0.0" />
   </ItemGroup>
 
@@ -42,14 +41,12 @@
    </ItemGroup>-->
 
    <ItemGroup>
+    <ProjectReference Include="..\..\..\Blazorme\FFmpeg\FFmpeg.csproj" />
     <ProjectReference Include="..\..\WebRTCme.Bindings\WebRTCme.Bindings.Blazor\WebRTCme.Bindings.Blazor.csproj">
-      <PrivateAssets>All</PrivateAssets>
     </ProjectReference>
     <ProjectReference Include="..\..\WebRTCme\WebRTCme.csproj">
-      <PrivateAssets>All</PrivateAssets>
     </ProjectReference>
     <ProjectReference Include="..\WebRTCme.Middleware\WebRTCme.Middleware.csproj">
-      <PrivateAssets>All</PrivateAssets>
     </ProjectReference>
   </ItemGroup>
 
@@ -61,10 +58,9 @@
     </None>
   </ItemGroup>
 
-   <Target Name="CopyProjectReferencesToPackage" DependsOnTargets="ResolveReferences">
-     <ItemGroup>
-       <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths-&gt;WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
-     </ItemGroup>
-   </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Blazorme.StreamSaver" Version="1.0.0" />
+  </ItemGroup>
 
  </Project>
