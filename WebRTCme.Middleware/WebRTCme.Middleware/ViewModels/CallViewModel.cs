@@ -5,83 +5,95 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using WebRTCme.Middleware;
+using WebRTCme.Connection;
 
 namespace WebRTCme.Middleware
 {
     public class CallViewModel : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string name = null) =>
+        void OnPropertyChanged([CallerMemberName] string name = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
         // A reference is required here. otherwise binding does not work.
-        public ObservableCollection<MediaParameters> MediaParametersList { get; set; }
+        public ObservableCollection<MediaStreamParameters> MediaStreamParametersList { get; set; }
 
-        private readonly IMediaStreamService _mediaStreamService;
-        private readonly IWebRtcConnection _webRtcConnection;
-        private readonly ISignallingServerService _signallingServerService;
-        private readonly IMediaManagerService _mediaManagerService;
-        private readonly INavigationService _navigationService;
-        private readonly IRunOnUiThreadService _runOnUiThreadService;
-        private readonly ILogger<CallViewModel> _logger;
-        private readonly IJSRuntime _jsRuntime;
+        readonly INavigation _navigation;
+        readonly IMediaStreamManager _mediaStreamManager;
+        readonly ILocalMediaStream _localMediaStream;
+        readonly IMediaRecorderManager _mediaRecorderManager;
+        readonly IModalPopup _modalPopup;
+        readonly IRunOnUiThread _runOnUiThread;
+        readonly ILogger<CallViewModel> _logger;
+        readonly IConnectionFactory _connectionFactory;
 
-        private IDisposable _connectionDisposer;
-        private Action _reRender;
-        private string _userName;
-        private IMediaStream _cameraStream;
-        private IMediaStream _displayStream;
-        private ConnectionParameters _connectionParameters;
+        readonly Guid _guid = Guid.NewGuid();
 
-        private IMediaRecorder _mediaRecorder;
+        IConnection _connection;
+        UserContext _userContext;
 
-        public CallViewModel(IMediaStreamService mediaStreamService, IWebRtcConnection webRtcConnection,
-            ISignallingServerService signallingServerService, IMediaManagerService mediaManagerService, 
-            INavigationService navigationService,  IRunOnUiThreadService runOnUiThreadService, 
-            ILogger<CallViewModel> logger, IJSRuntime jsRuntime = null)
+        IDisposable _connectionDisposer;
+        Action _reRender;
+        IMediaStream _cameraStream;
+        IMediaStream _displayStream;
+        ConnectionParameters _connectionParameters;
+
+        string _recordingFileName = "WebRTCme.webm";
+
+        public CallViewModel(INavigation navigation, ILocalMediaStream localMediaStream, 
+            IMediaStreamManager mediaStreamManager,
+            IMediaRecorderManager mediaRecorderManager,
+            IModalPopup modalPopup, 
+            IRunOnUiThread runOnUiThreadService, ILogger<CallViewModel> logger, IConnectionFactory connectionFactory)
         {
-            _mediaStreamService = mediaStreamService;
-            _webRtcConnection = webRtcConnection;
-            _signallingServerService = signallingServerService;
-            _mediaManagerService = mediaManagerService;
-            _navigationService = navigationService;
-            _runOnUiThreadService = runOnUiThreadService;
+            _navigation = navigation;
+            _localMediaStream = localMediaStream;
+            _mediaStreamManager = mediaStreamManager;
+            _mediaRecorderManager = mediaRecorderManager;
+            _modalPopup = modalPopup;
+            _runOnUiThread = runOnUiThreadService;
             _logger = logger;
-            _jsRuntime = jsRuntime;
-            MediaParametersList = mediaManagerService.MediaParametersList;
+            _connectionFactory = connectionFactory;
+
+            MediaStreamParametersList = mediaStreamManager.MediaStreamParametersList;
         }
 
         public async Task OnPageAppearingAsync(ConnectionParameters connectionParameters, Action reRender = null)
         {
             _connectionParameters = connectionParameters;
             _reRender = reRender;
-            _userName = connectionParameters.UserName;
-            _cameraStream = await _mediaStreamService.GetCameraMediaStreamAsync();
-            _displayStream = await _mediaStreamService.GetDisplayMediaStreamAync();
-            _mediaManagerService.Add(new MediaParameters
+            _cameraStream = await _localMediaStream.GetCameraMediaStreamAsync();
+            _mediaStreamManager.Add(new MediaStreamParameters
             {
-                Label = connectionParameters.UserName,
                 Stream = _cameraStream,
+                Label = connectionParameters.Name,
+                Hangup = false,
                 VideoMuted = false,
-                AudioMuted = false,
+                AudioMuted = true,  // prevents local echo
+                CameraType = CameraType.Default,
                 ShowControls = false
             });
 
             reRender?.Invoke();
 
-            var connectionRequestParameters = new ConnectionRequestParameters
-            {
-                ConnectionParameters = connectionParameters,
-                LocalStream = _cameraStream,
+            _connection = _connectionFactory.SelectConnection(connectionParameters.ConnectionType);
+            _userContext = new() 
+            { 
+                ConnectionType = connectionParameters.ConnectionType,
+                Id = _guid,
+                Name = connectionParameters.Name,
+                Room = connectionParameters.Room,
+                LocalStream = _cameraStream
             };
-            Connect(connectionRequestParameters);
+
+            Connect();
         }
 
         public Task OnPageDisappearingAsync()
@@ -90,64 +102,125 @@ namespace WebRTCme.Middleware
             return Task.CompletedTask;
         }
 
-        private void Connect(ConnectionRequestParameters connectionRequestParameters)
+
+        void Connect()
         {
-            _connectionDisposer = _webRtcConnection.ConnectionRequest(connectionRequestParameters).Subscribe(
-                onNext: (peerResponseParameters) =>
+            _connectionDisposer = _connection.ConnectionRequest(_userContext).Subscribe(
+                // 'async' here is fire-and-forget!!! It is OK for exceptions and error messages only.
+                onNext: async peerResponse =>
                 {
-                    switch (peerResponseParameters.Code)
+                    switch (peerResponse.Type)
                     {
-                        case PeerResponseCode.PeerJoined:
-                            if (peerResponseParameters.MediaStream != null)
+                        case PeerResponseType.PeerJoined:
+                            if (peerResponse.MediaStream != null)
                             {
-                                _runOnUiThreadService.Invoke(() =>
+                                _runOnUiThread.Invoke((Action)(() =>
                                 {
-                                    _mediaManagerService.Add(new MediaParameters
+                                    _mediaStreamManager.Add((MediaStreamParameters)new MediaStreamParameters
                                     {
-                                        Label = peerResponseParameters.PeerUserName,
-                                        Stream = peerResponseParameters.MediaStream,
+                                        Stream = peerResponse.MediaStream,
+                                        Label = peerResponse.Name,
+                                        Hangup = false,
                                         VideoMuted = false,
                                         AudioMuted = false,
+                                        CameraType = CameraType.Default,
                                         ShowControls = false
                                     });
-                                });
+                                }));
 
                                 _reRender?.Invoke();
                             }
                             break;
 
-                        case PeerResponseCode.PeerLeft:
-                            _runOnUiThreadService.Invoke(() =>
+                        case PeerResponseType.PeerLeft:
+                            _runOnUiThread.Invoke(() =>
                             {
-                                _mediaManagerService.Remove(peerResponseParameters.PeerUserName);
+                                _mediaStreamManager.Remove(peerResponse.Name);
                             });
                             _reRender?.Invoke();
-                            System.Diagnostics.Debug.WriteLine($"************* APP PeerLeft");
+                            _logger.LogInformation($"************* APP PeerLeft");
                             break;
 
-                        case PeerResponseCode.PeerError:
-                            _runOnUiThreadService.Invoke(() =>
+                        case PeerResponseType.PeerError:
+                            _runOnUiThread.Invoke(() =>
                             {
-                                _mediaManagerService.Remove(peerResponseParameters.PeerUserName);
+                                _mediaStreamManager.Remove(peerResponse.Name);
                             });
                             _reRender?.Invoke();
-                            System.Diagnostics.Debug.WriteLine($"************* APP PeerError");
+
+                            _logger.LogInformation($"************* APP PeerError");
+                            _ = await _modalPopup.GenericPopupAsync(new GenericPopupIn
+                            {
+                                Title = "Error",
+                                Text = $"Peer {peerResponse.Name} indicated an error:" +
+                                       Environment.NewLine +
+                                       peerResponse.ErrorMessage,
+                                Ok = "Ok",
+                            });
+                            break;
+                        case PeerResponseType.PeerMedia:
+                            _logger.LogInformation($"TODO: ************* APP PeerMedia");
                             break;
                     }
                 },
-                onError: (exception) =>
+                onError: async exception =>
                 {
-                    System.Diagnostics.Debug.WriteLine($"************* APP OnError:{exception.Message}");
+                    _logger.LogInformation($"************* APP OnError:{exception.Message}");
+                    if (exception.Message.Contains("has already joined"))
+                    {
+                        var popupOut = await _modalPopup.GenericPopupAsync(new GenericPopupIn
+                        {
+                            Title = "Error",
+                            Text = $"User name {_userContext.Name} " +
+                                   $"is in use. Please enter another name or 'Cancel' to cancel the call.",
+                            EntryPlaceholder = "New user name",
+                            Ok = "OK",
+                            Cancel = "Cancel"
+                        });
+                        await OnPageDisappearingAsync();
+                        if (popupOut.Ok)
+                        {
+                            _userContext.Name = popupOut.Entry;
+                            _connectionParameters.Name = popupOut.Entry;
+                            await OnPageAppearingAsync(_connectionParameters, _reRender);
+                        }
+                        else
+                        {
+                            await _navigation.NavigateToPageAsync("///", "ConnectionParametersPage");
+                        }
+                    }
+                    else
+                    {
+                        var popupOut = await _modalPopup.GenericPopupAsync(new GenericPopupIn
+                        {
+                            Title = "Error",
+                            Text = $"An error occured during the connection. Here is the reported error message:" +
+                                   Environment.NewLine +
+                                   $"{exception.Message}",
+                            Ok = "Try again",
+                            Cancel = "Cancel"
+                        });
+                        Disconnect();
+                        if (popupOut.Ok)
+                        {
+                            Connect();
+                        }
+                        else
+                        {
+                            await _navigation.NavigateToPageAsync("///", "ConnectionParametersPage");
+                        }
+                    }
                 },
                 onCompleted: () =>
                 {
-                    System.Diagnostics.Debug.WriteLine($"************* APP OnCompleted");
+                    _logger.LogInformation($"************* APP OnCompleted");
                 });
         }
 
-        private void Disconnect()
+        void Disconnect()
         {
-            _mediaManagerService.Clear();
+            _mediaRecorderManager.ResetAllAsync();
+            _mediaStreamManager.Clear();
             _connectionDisposer.Dispose();
         }
 
@@ -169,16 +242,18 @@ namespace WebRTCme.Middleware
             {
                 // Stop sharing.
                 ShareScreenButtonText = "Start sharing screen";
-                await _webRtcConnection.ReplaceOutgoingVideoTracksAsync(_connectionParameters.TurnServerName,
-                    _connectionParameters.RoomName, _cameraStream.GetVideoTracks()[0]);
-
+                await _connection.ReplaceOutgoingTrackAsync(_displayStream.GetVideoTracks()[0],
+                    _cameraStream.GetVideoTracks()[0]);
+                _displayStream = null;
             }
             else
             {
+                _displayStream ??= await _localMediaStream.GetDisplayMediaStreamAync();
+
                 // Start sharing.
                 ShareScreenButtonText = "Stop sharing screen";
-                await _webRtcConnection.ReplaceOutgoingVideoTracksAsync(_connectionParameters.TurnServerName,
-                    _connectionParameters.RoomName, _displayStream.GetVideoTracks()[0]);
+                await _connection.ReplaceOutgoingTrackAsync(_cameraStream.GetVideoTracks()[0],
+                    _displayStream.GetVideoTracks()[0]);
             }
             _isSharingScreen = !_isSharingScreen;
 
@@ -189,8 +264,8 @@ namespace WebRTCme.Middleware
             await OnShareScreenAsync();
         });
 
-        private bool _isRecording;
-        private string _recordButtonText = "Start recording";
+        bool _isRecording;
+        string _recordButtonText = "Start recording";
         public string RecordButtonText
         {
             get => _recordButtonText;
@@ -207,39 +282,22 @@ namespace WebRTCme.Middleware
             {
                 // Stop recording.
                 RecordButtonText = "Start recording";
-                _mediaRecorder.Stop();
-                _mediaRecorder.Dispose();
+
+                await _mediaRecorderManager.StopAsync(_recordingFileName);
             }
             else
             {
                 // Start recording.
                 RecordButtonText = "Stop recording";
-                var window = WebRtcMiddleware.WebRtc.Window(_jsRuntime);
 
-                _mediaRecorder = window.MediaRecorder(_displayStream);
-                _mediaRecorder.OnDataAvailable += (async (s, e) => 
+                var mediaRecorderOptions = new MediaRecorderOptions
                 {
-                    var blob = e.Data;
-                    _logger.LogInformation($"---------------------------- RECORDER BLOB DATA: size:{blob.Size}");
-                    //var data = await blob.ArrayBuffer();
-                    var data = await blob.Text();
-                    _logger.LogInformation($"---------------------------- RECORDER UTF-8 STRING : size:{data.Length}");
-                    var dataBin = Encoding.UTF8.GetBytes(data);
-////                    _logger.LogInformation($"DATA:\n {data}");
-      //_mediaRecorder.Stop();
-                });
-                _mediaRecorder.OnStart += ((s, e) => 
-                {
-                    _logger.LogInformation("---------------------------- RECORDER STARTED");
-                });
-                _mediaRecorder.Start(1000);
-                //await Task.Delay(1000);
-                //_mediaRecorder.RequestData();
-    ///_mediaRecorder.Stop();
+                    MimeType = "video/webm",
+                };
+                await _mediaRecorderManager.StartAsync(_recordingFileName, 5000, /*_displayStream*/ _cameraStream,
+                    mediaRecorderOptions);
             }
             _isRecording = !_isRecording;
-
-            //return Task.CompletedTask;
         }
     }
 }

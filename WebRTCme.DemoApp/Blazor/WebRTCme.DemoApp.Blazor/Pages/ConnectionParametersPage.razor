@@ -1,5 +1,4 @@
-﻿@page "/ConnectionParametersPage"
-@page "/ConnectionParametersPage/{TurnServerNamesJson}"
+﻿@page "/"
 
 <h3 class="my-5 text-center">Connection Parameters</h3>
 
@@ -10,28 +9,26 @@
     <ValidationSummary />
 
     <div>
-        <label class="col-6 text-right">TURN server name:</label>
-        <InputSelect @bind-Value="ConnectionParametersViewModel.ConnectionParameters.TurnServerName">
-            @if (ConnectionParametersViewModel.TurnServerNames is not null)
+        <label class="col-6 text-right">Connection server:</label>
+        <InputSelect @bind-Value="ConnectionParametersViewModel.SelectedConnectionTypeName">
+            @foreach (var connectionType in ConnectionParametersViewModel.ConnectionTypeNames)
             {
-                @foreach (var turnServerName in ConnectionParametersViewModel.TurnServerNames)
-                {
-                    <option value="@turnServerName">@turnServerName</option>
-                }
+                <option value="@connectionType">@connectionType</option>
             }
         </InputSelect>
-    </div>
+     </div>
+
 
     <div>
         <label class="col-6 text-right">Room name:</label>
         <InputText id="roomId" placeholder="enter room name" 
-        @bind-Value="ConnectionParametersViewModel.ConnectionParameters.RoomName" />
+        @bind-Value="ConnectionParametersViewModel.ConnectionParameters.Room" />
     </div>
 
     <div>
         <label class="col-6 text-right">User name:</label>
         <InputText id="userId" placeholder="enter user name" 
-        @bind-Value="ConnectionParametersViewModel.ConnectionParameters.UserName" />
+        @bind-Value="ConnectionParametersViewModel.ConnectionParameters.Name" />
     </div>
 
     <div class="mt-5 text-center">

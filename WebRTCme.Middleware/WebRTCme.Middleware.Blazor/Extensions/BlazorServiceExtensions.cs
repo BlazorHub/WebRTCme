@@ -1,4 +1,5 @@
-﻿using Blazorme;
+﻿using BlazorDialog;
+using Blazorme;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
@@ -12,13 +13,20 @@ namespace WebRTCme.Middleware
     {
         public static IServiceCollection AddBlazorMiddleware(this IServiceCollection services)
         {
+            // This is scoped. Copied 'BlazorDialogStore' to Externals as 2 and creating explicitly as Singleton.
+            ////services.AddBlazorDialog();
+            services.AddSingleton<IBlazorDialogStore, BlazorDialogStore2>();
+            services.AddSingleton<IBlazorDialogService, BlazorDialogService>();
+
+            services.AddSingleton<IModalPopup, ModalPopup>();
+            services.AddSingleton<INavigation, Navigation>();
+            services.AddSingleton<IRunOnUiThread, RunOnUiThread>();
             services.AddSingleton<IWebRtcIncomingFileStreamFactory, WebRtcIncomingFileStreamFactory>();
-            services.AddSingleton<IVideoRecorderFileStreamFactory, VideoRecorderFileStreamFactory>();
+            services.AddSingleton<IMediaRecorderFileStreamFactory, MediaRecorderFileStreamFactory>();
 
             services.AddMiddleware();
 
             services.AddStreamSaver();
-            services.AddFFmpeg();
 
             return services;
 

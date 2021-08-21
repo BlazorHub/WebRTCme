@@ -13,16 +13,15 @@ namespace WebRTCme.DemoApp.Blazor.Pages
         [Inject]
         ConnectionParametersViewModel ConnectionParametersViewModel {get;set;}
 
-        [Parameter]
-        public string TurnServerNamesJson { get; set; }
-
-        protected override void OnInitialized()
+        protected override async Task OnInitializedAsync()
         {
-            base.OnInitialized();
+            await ConnectionParametersViewModel.OnPageAppearingAsync(ReRender);            
+            await base.OnInitializedAsync();
+        }
 
-            var turnServerNames = TurnServerNamesJson is null ? null : 
-                JsonSerializer.Deserialize<string[]>(TurnServerNamesJson);
-            ConnectionParametersViewModel.OnPageAppearing(turnServerNames);
+        private void ReRender()
+        {
+            StateHasChanged();
         }
     }
 }

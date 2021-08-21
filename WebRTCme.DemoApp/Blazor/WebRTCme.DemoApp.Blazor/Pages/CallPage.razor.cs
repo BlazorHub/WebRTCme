@@ -1,5 +1,4 @@
-﻿using Blazored.Modal.Services;
-using Microsoft.AspNetCore.Components;
+﻿using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,7 +29,7 @@ namespace WebRTCme.DemoApp.Blazor.Pages
             await CallViewModel.OnPageAppearingAsync(connectionParameters, ReRender);
         }
 
-        private void ReRender()
+        void ReRender()
         {
             //// TODO: Add InvokeAsync(StateHasChanged)
             StateHasChanged();

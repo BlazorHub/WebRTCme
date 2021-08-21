@@ -1,4 +1,3 @@
-using Blazored.Modal;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,7 +11,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using WebRTCme.DemoApp.Blazor.Extensions;
-using WebRTCme.DemoApp.Blazor.Services;
 using WebRTCme.Middleware;
 
 namespace WebRTCme.DemoApp.Blazor.Wasm
@@ -33,9 +31,11 @@ namespace WebRTCme.DemoApp.Blazor.Wasm
                 BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) 
             });
 
-            _ = CrossWebRtcMiddlewareBlazor.Current;
+            var webRtcMiddleware = CrossWebRtcMiddlewareBlazor.Current;
+            builder.Services.AddSingleton(serviceProvider => webRtcMiddleware.WebRtc);
+            builder.Services.AddSingleton(serviceProvider => webRtcMiddleware);
 
-            builder.Services.AddAppServices();
+            builder.Services.AddApp();
 
             var host = builder.Build();
             ConfigureProviders(host.Services);

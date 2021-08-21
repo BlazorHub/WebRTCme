@@ -7,7 +7,6 @@ using Xamarinme;
 using System.Reflection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using WebRTCme.DemoApp.Xamarin.Services;
 
 namespace DemoApp
 {
@@ -23,9 +22,10 @@ namespace DemoApp
                 Prefix = "WebRTCme.DemoApp.Xamarin"
             });
 
-            _ = CrossWebRtcMiddlewareXamarin.Current;
-            hostBuilder.Services.AddSingleton<INavigationService, NavigationService>();
-            hostBuilder.Services.AddSingleton<IRunOnUiThreadService, RunOnUiThreadService>();
+            var webRtcMiddleware = CrossWebRtcMiddlewareXamarin.Current;
+            hostBuilder.Services.AddSingleton(serviceProvider => webRtcMiddleware.WebRtc);
+            hostBuilder.Services.AddSingleton(serviceProvider => webRtcMiddleware);
+
             hostBuilder.Services.AddXamarinMiddleware();
             Host = hostBuilder.Build();
 

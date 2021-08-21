@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\WebRTCme.Middleware\WebRTCme.Middleware.Xamarin\WebRTCme.Middleware.Xamarin.csproj" />
-    <ProjectReference Include="..\..\..\WebRTCme.Middleware\WebRTCme.Middleware\WebRTCme.Middleware.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,9 +45,6 @@
   <ItemGroup>
     <EmbeddedResource Update="Views\IncomingChatView.xaml">
       <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
-    </EmbeddedResource>
-    <EmbeddedResource Update="Views\InitializingPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
     </EmbeddedResource>
     <EmbeddedResource Update="Views\CallPage.xaml">
       <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
