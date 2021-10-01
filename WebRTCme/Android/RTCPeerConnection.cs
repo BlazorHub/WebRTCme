@@ -124,28 +124,33 @@ namespace WebRTCme.Android
                     (Webrtc.MediaStreamTrack)track.NativeObject, init.ToNative()));
         }
 
-
         public void Close() => ((Webrtc.PeerConnection)NativeObject).Close();
 
-        public Task<RTCSessionDescriptionInit> CreateAnswer(RTCAnswerOptions options)
+        public async Task<RTCSessionDescriptionInit> CreateAnswer(RTCAnswerOptions options)
         {
             var tcs = new TaskCompletionSource<RTCSessionDescriptionInit>();
             ((Webrtc.PeerConnection)NativeObject).CreateAnswer(
                 new SdpObserverProxy(tcs), 
                 new Webrtc.MediaConstraints()/*NativeDefaultMediaConstraints*/);
-            return tcs.Task;
+            var answer = await tcs.Task;
+            // Android DOES NOT expose 'Type'!!! Set it manually here.
+                answer.Type = RTCSdpType.Answer;
+            return answer;
         }
 
         public IRTCDataChannel CreateDataChannel(string label, RTCDataChannelInit options) =>
                 RTCDataChannel.Create(((Webrtc.PeerConnection)NativeObject).CreateDataChannel(label, options.ToNative()));
 
-        public Task<RTCSessionDescriptionInit> CreateOffer(RTCOfferOptions options)
+        public async Task<RTCSessionDescriptionInit> CreateOffer(RTCOfferOptions options)
         {
             var tcs = new TaskCompletionSource<RTCSessionDescriptionInit>();
             ((Webrtc.PeerConnection)NativeObject).CreateOffer(
                 new SdpObserverProxy(tcs), 
                 new Webrtc.MediaConstraints()/*NativeDefaultMediaConstraints*/);
-            return tcs.Task;
+            var offer = await tcs.Task;
+            // Android DOES NOT expose 'Type'!!! I set it manually here. 
+            offer.Type = RTCSdpType.Offer;
+            return offer;
         }
 
         public Task<IRTCCertificate> GenerateCertificate(Dictionary<string, object> keygenAlgorithm) =>

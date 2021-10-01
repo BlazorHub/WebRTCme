@@ -63,7 +63,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client.Sdp
                 case MediaKind.Audio:
                 case MediaKind.Video:
                     {
-                        _mediaObject.Direction = Direction.SendOnly;
+                        _mediaObject.MediaDescription.Attributes.SendOnly = true;
                         _mediaObject.MediaDescription.Attributes.Rtpmaps = new List<Rtpmap>();
                         _mediaObject.MediaDescription.Attributes.RtcpFbs = new List<RtcpFb>();
                         _mediaObject.MediaDescription.Attributes.Fmtps = new List<Fmtp>();
@@ -106,15 +106,15 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client.Sdp
                             .Select(codec => codec.PayloadType.ToString()));
 
 
-                        _mediaObject.Extensions = new();
+                        _mediaObject.MediaDescription.Attributes.Extmaps = new List<Extmap>();
                         foreach (var headerExtension in offerRtpParameters.HeaderExtensions)
                         {
-                            var ext = new RtpHeaderExtensionParameters 
+                            Extmap ext = new()
                             {
-                                Uri = headerExtension.Uri,
-                                Number = headerExtension.Number
+                                Uri = new Uri(headerExtension.Uri),
+                                Value = headerExtension.Id
                             };
-                            _mediaObject.Extensions.Add(ext);
+                            _mediaObject.MediaDescription.Attributes.Extmaps.Add(ext);
                         }
 
                         _mediaObject.MediaDescription.Attributes.RtcpMux = true;

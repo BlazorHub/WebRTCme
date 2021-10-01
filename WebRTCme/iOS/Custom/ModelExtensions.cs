@@ -9,21 +9,26 @@ namespace WebRTCme.iOS
 {
     internal static class ModelExtensions
     {
-        public static Webrtc.RTCConfiguration ToNative(this RTCConfiguration configuration) =>
-            new Webrtc.RTCConfiguration
-            {
-                BundlePolicy = configuration.BundlePolicy?.ToNative() ?? Webrtc.RTCBundlePolicy.Balanced,
-                Certificate = (Webrtc.RTCCertificate)(configuration.Certificates?.ElementAt(0).NativeObject) ??
-                    //new Webrtc.RTCCertificate("TODO:private key", "TODO: certificate"),
-                    Webrtc.RTCCertificate.GenerateCertificateWithParams(new NSDictionary<NSString, NSObject>(
-                        new[] { new NSString("expires"), new NSString("name") },
-                        new NSObject[] { new NSNumber(100000), new NSString("RSASSA-PKCS1-v1_5") })),
-
-                IceCandidatePoolSize = configuration.IceCandidatePoolSize ?? 0,
-                IceServers = configuration.IceServers.Select(server => server.ToNative()).ToArray(),
-                IceTransportPolicy = configuration.IceTransportPolicy?.ToNative() ?? Webrtc.RTCIceTransportPolicy.All,
-                RtcpMuxPolicy = configuration.RtcpMuxPolicy?.ToNative() ?? Webrtc.RTCRtcpMuxPolicy.Require
-            };
+        public static Webrtc.RTCConfiguration ToNative(this RTCConfiguration configuration)
+        {
+            RTCIceServer[] iceServers = configuration.IceServers ?? new RTCIceServer[] { };
+            var nativeConfiguration = new Webrtc.RTCConfiguration();
+            if (configuration.BundlePolicy.HasValue)
+                nativeConfiguration.BundlePolicy = ((RTCBundlePolicy)configuration.BundlePolicy).ToNative();
+            if (configuration.Certificates is not null)
+                nativeConfiguration.Certificate = (Webrtc.RTCCertificate)
+                    (configuration.Certificates?.ElementAt(0).NativeObject);
+            if (configuration.IceCandidatePoolSize.HasValue)
+                nativeConfiguration.IceCandidatePoolSize = (int)configuration.IceCandidatePoolSize;
+            nativeConfiguration.IceServers = iceServers.Select(server => server.ToNative()).ToArray();
+            if (configuration.IceTransportPolicy.HasValue)
+                nativeConfiguration.IceTransportPolicy = ((RTCIceTransportPolicy)configuration.IceTransportPolicy).ToNative();
+            if (configuration.RtcpMuxPolicy.HasValue)
+                nativeConfiguration.RtcpMuxPolicy = ((RTCRtcpMuxPolicy)configuration.RtcpMuxPolicy).ToNative();
+            if (configuration.SdpSemantics.HasValue)
+                nativeConfiguration.SdpSemantics = ((SdpSemantics)configuration.SdpSemantics).ToNative();
+            return nativeConfiguration;
+        }
 
         public static Webrtc.RTCIceServer ToNative(this RTCIceServer iceServer) =>
             new Webrtc.RTCIceServer
@@ -79,10 +84,11 @@ namespace WebRTCme.iOS
 
         public static Webrtc.RTCRtpTransceiverInit ToNative(this RTCRtpTransceiverInit init)
         {
+            RTCRtpEncodingParameters[] initSendEncodings = init.SendEncodings ?? new RTCRtpEncodingParameters[] { };
             var direction = init.Direction is null ? Webrtc.RTCRtpTransceiverDirection.Inactive : 
                 ((RTCRtpTransceiverDirection)init.Direction).ToNative();
             var streamIds = init.Streams is null ? null : init.Streams.Select(stream => stream.Id).ToArray();
-            var sendEncodings = init.SendEncodings.Select(encodings => encodings.ToNative()).ToArray();
+            var sendEncodings = initSendEncodings.Select(encodings => encodings.ToNative()).ToArray();
             return new Webrtc.RTCRtpTransceiverInit
             {
                 Direction = direction,
@@ -144,11 +150,11 @@ namespace WebRTCme.iOS
             new RTCRtpEncodingParameters
             {
                 Active = nativeEncoding.IsActive,
-                CodecPayloadType = 0, //// TODO: CHECK THIS
-                Dtx = RTCDtxStatus.Enabled, //// TODO: CHECK THIS
+                ////CodecPayloadType = 0, //// TODO: CHECK THIS
+                ////Dtx = RTCDtxStatus.Enabled, //// TODO: CHECK THIS
                 MaxBitrate = nativeEncoding.MaxBitrateBps.UInt64Value,
                 MaxFramerate = nativeEncoding.MaxFramerate.DoubleValue,
-                Ptime = 0, //// TODO: CHECK THIS
+                ////Ptime = 0, //// TODO: CHECK THIS
                 Rid = nativeEncoding.Rid,
                 ScaleResolutionDownBy = nativeEncoding.ScaleResolutionDownBy.DoubleValue
             };

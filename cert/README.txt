@@ -6,6 +6,7 @@ CREATE
 openssl req -config localhost.config -new -out csr.pem
 openssl x509 -req -days 3652 -sha256 -extfile localhost.config -extensions v3_req -in csr.pem -signkey key.pem -out localhost.crt
 openssl pkcs12 -export -out localhost.pfx -inkey key.pem -in localhost.crt -password pass:_localhost_
+openssl x509 -in localhost.crt -out localhost.pem
 
 CHECK
 -----
@@ -49,11 +50,18 @@ for /L %i in (44300,1,44399) do netsh http add sslcert ipport=0.0.0.0:%i certhas
 
 ANDROID INSTALLATION
 --------------------
-# Push pfx file to "/sdcard/Download"
-adb push localhost.cer /sdcard/Download
+# Push crt file to "/sdcard/Download"
+adb push localhost.crt /sdcard/Download
 # On phone Settings, Security, Encription & credentials use "Install from SD card"
 
 
 IOS SIMULATION INSTALLATION
 ----------------
 # Open simulation on Mac, grag and drop the cer file.
+
+IOS PHONE INSTALL
+-----------------
+- email PEM file
+- open on the phone and install
+- General->About->Certificate Trus Serttings, enable full trust
+USE SAFARI - CHROME DOES NOT WORK

@@ -412,7 +412,10 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                         MimeType = $"{extendedCodec.Kind.DisplayName()}/rtx",
                         PayloadType = (int)extendedCodec.LocalRtxPayloadType,
                         ClockRate = extendedCodec.ClockRate,
-                        Parameters = extendedCodec.LocalParameters,
+                        Parameters = new Dictionary<string, object>
+                        {
+                            {"apt", extendedCodec.LocalPayloadType }
+                        },
                         RtcpFeedback = new RtcpFeedback[] { }
                     };
                     codecs.Add(rtxCodec);
@@ -431,9 +434,8 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 RtpHeaderExtensionParameters ext = new()
                 {
                     Uri = extendedExtendion.Uri,
-                    Number = extendedExtendion.SendId,
+                    Id = extendedExtendion.SendId,
                     Encrypt = (bool)extendedExtendion.PreferredEncrypt,
-                    Parameters = new()
                 };
                 headerExtensions.Add(ext);
             }
@@ -475,7 +477,10 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                         MimeType = $"{extendedCodec.Kind.DisplayName()}/rtx",
                         PayloadType = (int)extendedCodec.LocalRtxPayloadType,
                         ClockRate = extendedCodec.ClockRate,
-                        Parameters = extendedCodec.LocalParameters,
+                        Parameters = new Dictionary<string, object> 
+                        {
+                            {"apt", extendedCodec.LocalPayloadType }
+                        },
                         RtcpFeedback = new RtcpFeedback[] { }
                     };
                     codecs.Add(rtxCodec);
@@ -494,9 +499,8 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 RtpHeaderExtensionParameters ext = new()
                 {
                     Uri = extendedExtendion.Uri,
-                    Number = extendedExtendion.SendId,
+                    Id = extendedExtendion.SendId,
                     Encrypt = (bool)extendedExtendion.PreferredEncrypt,
-                    Parameters = new()
                 };
                 headerExtensions.Add(ext);
             }
@@ -547,7 +551,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             {
                 filteredCodecs.Add(codecs[0]);
 
-                if (IsRtxCodec(codecs[1]))
+                if (codecs.Length > 1 && IsRtxCodec(codecs[1]))
                     filteredCodecs.Add(codecs[1]);
             }
             // Otherwise look for a compatible set of codecs.
@@ -585,7 +589,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
 
             var rtpParameters = new RtpParameters
             {
-                Mid = new Mid { Id = RTP_PROBATOR_MID },
+                Mid = RTP_PROBATOR_MID, //// new Mid { Id = RTP_PROBATOR_MID },
                 Codecs = new RtpCodecParameters[] { codec },
                 HeaderExtensions = videoRtpParameters.HeaderExtensions,
                 Encodings = new RtpEncodingParameters[] { new RtpEncodingParameters { Ssrc = RTP_PROBATOR_SSRC } },
@@ -800,7 +804,6 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             return true;
         }
 
-
         bool MatchCodecs(RtpCodecParameters aCodec, RtpCodecCapability bCodec, bool strict = false,
             bool modify = false)
         {
@@ -876,42 +879,17 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             return true;
         }
 
-
-#if false
-        string GetCodecCapabilityParameterValue(RtpCodecCapability codec, string key)
-        {
-            string value = string.Empty;
-            var tokens = new string[] { };
-            
-            if (codec.Parameters.GetType() == typeof(string))
-            {
-                tokens = ((string)codec.Parameters).Split(';');
-            }
-            else if (codec.Parameters.GetType() == typeof(JsonElement))
-            {
-                var parametersJson = ((JsonElement)codec.Parameters).GetRawText();
-            }
-            else
-                throw new NotSupportedException($"Type {codec.Parameters.GetType()} is not supported");
-
-            return value;
-        }
-#endif
-
         RtcpFeedback[] ReduceRtcpFeedback(RtpCodecCapability codecA, RtpCodecCapability codecB)
         {
-            List<RtcpFeedback> reducedRtcpFeedback = new();
+            var fbArray = codecA.RtcpFeedback
+                .Where(a => codecB.RtcpFeedback.Any(b => 
+                    b.Type.Equals(a.Type) &&
+                    a.Parameter is not null &&
+                    b.Parameter is not null &&
+                    a.Parameter.Equals(b.Parameter)))
+                .ToArray();
 
-            foreach(var aFb in codecA.RtcpFeedback)
-            {
-                var matchingBFb = codecA.RtcpFeedback.FirstOrDefault(
-                    bFb => bFb.Type.Equals(aFb.Type) &&
-                    bFb.Parameter is not null && aFb.Parameter is not null || bFb.Parameter.Equals(aFb.Parameter));
-                if (matchingBFb is not null)
-                    reducedRtcpFeedback.Add(matchingBFb);
-            }
-
-            return reducedRtcpFeedback.ToArray();
+            return fbArray;
         }
     }
 }

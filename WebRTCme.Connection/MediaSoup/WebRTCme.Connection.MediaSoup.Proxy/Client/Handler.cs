@@ -8,6 +8,7 @@ using WebRTCme.Connection.MediaSoup.Proxy.Client.Sdp;
 using WebRTCme.Connection.MediaSoup.Proxy.Models;
 using System.Linq;
 using WebRTCme.Connection.MediaSoup.Proxy;
+using Xamarin.Essentials;
 
 namespace WebRTCme.Connection.MediaSoup.Proxy.Client
 {
@@ -21,7 +22,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
         Dictionary<MediaKind, RtpParameters> _sendingRtpParametersByKind;
         Dictionary<MediaKind, RtpParameters> _sendingRemoteRtpParametersByKind;
         Dictionary<string, IRTCRtpTransceiver> _mapMidTransceiver = new();
-        IMediaStream _sendStream;
+        //IMediaStream _sendStream;
         bool _hasDataChannelMediaSection;
         int _nextSendSctpStreamId;
         bool _transportReady;
@@ -65,15 +66,16 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             IRTCPeerConnection pc = _window.RTCPeerConnection(new RTCConfiguration 
             { 
                 IceTransportPolicy = RTCIceTransportPolicy.All,
-                BundlePolicy = RTCBundlePolicy.Balanced,// .MaxBundle,
+                BundlePolicy = RTCBundlePolicy.MaxBundle,
                 RtcpMuxPolicy = RTCRtcpMuxPolicy.Require,
+                SdpSemantics = SdpSemantics.UnifiedPlan
             });
             pc.AddTransceiver(MediaStreamTrackKind.Audio);
             pc.AddTransceiver(MediaStreamTrackKind.Video);
             var offer = await pc.CreateOffer();
             pc.Close();
 
-//Console.WriteLine($"SDP string:{offer.Sdp}");
+////Console.WriteLine($"SDP string:{offer.Sdp}");
             var sdpObject = offer.Sdp.ToSdp();
 //SdpSerializer.DumpSdp(sdpObject);
 
@@ -124,6 +126,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 IceTransportPolicy = options.IceTransportPolicy,
                 BundlePolicy = RTCBundlePolicy.MaxBundle,
                 RtcpMuxPolicy = RTCRtcpMuxPolicy.Require,
+                SdpSemantics = SdpSemantics.UnifiedPlan
             });
 
             _pc.OnIceConnectionStateChange += async (s, e) => 
@@ -205,6 +208,8 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
 
             var sendingRtpParameters =
                 Utils.Clone<RtpParameters>(_sendingRtpParametersByKind[options.Track.Kind.ToMediaSoup()], default);
+            foreach (var codec in sendingRtpParameters.Codecs)
+                codec.Parameters.ToStringOrNumber();
 
             // This may throw.
             sendingRtpParameters.Codecs = _ortc.ReduceCodecs(sendingRtpParameters.Codecs, options.Codec);
@@ -212,16 +217,19 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             var sendingRemoteRtpParameters = 
                 Utils.Clone<RtpParameters>(
                     _sendingRemoteRtpParametersByKind[options.Track.Kind.ToMediaSoup()], default);
+            foreach (var codec in sendingRemoteRtpParameters.Codecs)
+                codec.Parameters.ToStringOrNumber();
 
             // This may throw.
             sendingRemoteRtpParameters.Codecs = _ortc.ReduceCodecs(sendingRemoteRtpParameters.Codecs, options.Codec);
 
             var mediaSectionIdx = _remoteSdp.GetNextMediaSectionIdx();
+
             var transceiver = _pc.AddTransceiver(options.Track, new RTCRtpTransceiverInit
             {
                 Direction = RTCRtpTransceiverDirection.Sendonly,
-				Streams = new IMediaStream[] { _sendStream },
-                SendEncodings = options.Encodings.Select(e => e.ToWebRtc()).ToArray()
+                Streams = new IMediaStream[] { _window.MediaStream() },
+                SendEncodings = options.Encodings?.Select(e => e.ToWebRtc()).ToArray()
             });
 
             var offer = await _pc.CreateOffer();
@@ -259,7 +267,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 };
             }
 
-            Console.WriteLine($"send() | calling pc.setLocalDescription() {offer}");
+            ////Console.WriteLine($"send() | calling pc.setLocalDescription() {offer.Sdp}");
 
             await _pc.SetLocalDescription(offer);
 
@@ -267,7 +275,11 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             var localId = transceiver.Mid;
 
             // Set MID.
-            sendingRtpParameters.Mid = new Mid { Id = localId };
+            sendingRtpParameters.Mid = localId;//// new Mid { Id = localId };
+
+      //Console.WriteLine("===================");
+      //Console.WriteLine($"{_pc.LocalDescription.Sdp}");
+      //Console.WriteLine("===================");
 
             localSdpObject = _pc.LocalDescription.Sdp.ToSdp();
             offerMediaObject = new MediaObject
@@ -279,7 +291,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             sendingRtpParameters.Rtcp.Cname = CommonUtils.GetCname(offerMediaObject);
 
             // Set RTP encodings by parsing the SDP offer if no encodings are given.
-            if (options.Encodings is not null)
+            if (options.Encodings is null)
             {
                 sendingRtpParameters.Encodings = UnifiedPlanUtils.GetRtpEncodings(offerMediaObject);
             }
@@ -324,7 +336,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 Sdp = _remoteSdp.GetSdp()
             };
 
-            Console.WriteLine($"send() | calling pc.setRemoteDescription() {answer}");
+ ////Console.WriteLine($"send() | calling pc.setRemoteDescription() {answer.Sdp}");
 
             await _pc.SetRemoteDescription(answer);
 
@@ -494,7 +506,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
 
         public async Task<HandlerReceiveResult> ReceiveAsync(HandlerReceiveOptions options)
         {
-            var localId = options.RtpParameters.Mid?.Id ?? _mapMidTransceiver.Count.ToString();
+            var localId = options.RtpParameters.Mid/****?.Id****/ ?? _mapMidTransceiver.Count.ToString();
 
 		    _remoteSdp.Receive(
 				localId,

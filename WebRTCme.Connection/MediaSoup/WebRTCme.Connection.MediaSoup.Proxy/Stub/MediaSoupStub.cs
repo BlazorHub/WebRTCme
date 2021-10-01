@@ -4,6 +4,7 @@ using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Net.WebSockets;
 using System.Reactive;
 using System.Text;
@@ -12,12 +13,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Utilme;
 using WebRTCme.Connection.MediaSoup;
+using WebRTCme.Connection.MediaSoup.ClientWebSockets;
+using Xamarin.Essentials;
 
 namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
 {
     class MediaSoupStub : IMediaSoupServerApi
     {
-        readonly ClientWebSocket _webSocket = new();
+        readonly IClientWebSocket _webSocket;
         readonly ArraySegment<byte> _rxBuffer = new(new byte[16384]);
 
         TaskCompletionSource<ProtooResponseOk> _tcsResponseOk;
@@ -31,25 +34,50 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
         public event IMediaSoupServerNotify.NotifyDelegateAsync NotifyEventAsync;
         public event IMediaSoupServerNotify.RequestDelegateAsync RequestEventAsync;
 
-        public MediaSoupStub(IConfiguration configuration, IWebRtc webRtc, ILogger<MediaSoupStub> logger,
-            IJSRuntime jsRuntime = null)
+        public MediaSoupStub(ClientWebSocketFactory clientWebSocketFactory, IConfiguration configuration, 
+            IWebRtc webRtc, ILogger<MediaSoupStub> logger, IJSRuntime jsRuntime = null)
         {
             _mediaSoupServerBaseUrl = configuration["MediaSoupServer:BaseUrl"];
             Registry.WebRtc = webRtc;
             Registry.Logger = logger;
             Registry.JsRuntime = jsRuntime;
+
+            //// TODO: Bypass only for debugging with self signed certs (local IPs).
+            var bypassSslCertificateError = DeviceInfo.Platform == DevicePlatform.Android;
+            if (bypassSslCertificateError)
+            {
+                _webSocket = clientWebSocketFactory.Create(ClientWebSocketSelect.LitePcl);
+                _webSocket.Options.IgnoreServerCertificateErrors = true;
+            }
+            else
+                _webSocket = clientWebSocketFactory.Create(ClientWebSocketSelect.System);
         }
 
         public async Task<Result<Unit>> ConnectAsync(Guid id, string name, string room)
         {
             _cts = new();
 
+
+            // This throws in Blazor!!!
+#if false
+            var uri = new Uri(_mediaSoupServerBaseUrl);
+            _webSocket.Options.SetRequestHeader("roomId", room);
+            _webSocket.Options.SetRequestHeader("peerId", name);
+#endif
             var uri = new Uri(new Uri(_mediaSoupServerBaseUrl),
                 $"?roomId={room}" +
                 $"&peerId={name}");
             _webSocket.Options.AddSubProtocol("protoo");
             _webSocket.Options.AddSubProtocol("Sec-WebSocket-Protocol");
-            await _webSocket.ConnectAsync(uri, _cts.Token);
+
+            try
+            {
+                await _webSocket.ConnectAsync(uri, _cts.Token);
+            }
+            catch (Exception ex)
+            {
+                var m = ex.Message;
+            }
 
             // Task handling incoming requests.
             _ = Task.Run(async () => 
@@ -75,10 +103,11 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
                                         Ok = true,
                                         Data = data
                                     };
+                                    var json = JsonSerializer.Serialize(response,
+                                        JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions);
+          Console.WriteLine($"<<<<<<<<<<<<< OUTGOING MSG (REQUEST ACCEPT): {json}");
                                     await _webSocket.SendAsync(
-                                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(
-                                            JsonSerializer.Serialize(response, 
-                                                JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions))),
+                                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
                                         WebSocketMessageType.Text,
                                         true,
                                         _cts.Token);
@@ -103,9 +132,11 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
                                         ErrorCode = error,
                                         ErrorReason = errorReason
                                     };
+                                    var json = JsonSerializer.Serialize(response,
+                                        JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions);
+         Console.WriteLine($"<<<<<<<<<<<<< OUTGOING MSG (REQUEST ERROR): {json}");
                                     await _webSocket.SendAsync(
-                                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(
-                                            JsonSerializer.Serialize(request, JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions))),
+                                        new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
                                         WebSocketMessageType.Text,
                                         true,
                                         _cts.Token);
@@ -158,8 +189,8 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
                 {
                     try
                     {
-                        var bytes = await _webSocket.ReceiveAsync(_rxBuffer, _cts.Token);
-                        var json = Encoding.UTF8.GetString(_rxBuffer.Array, 0, bytes.Count);
+                        var result = await _webSocket.ReceiveAsync(_rxBuffer, _cts.Token);
+                        var json = Encoding.UTF8.GetString(_rxBuffer.Array, 0, result.Count);
   Console.WriteLine($">>>>>>>>>>>>> INCOMING MSG: {json}");
                         var jsonDocument = JsonDocument.Parse(json);
                         if (jsonDocument.RootElement.TryGetProperty("response", out _))
@@ -220,10 +251,10 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Stub
                     Method = method,
                     Data = data
                 };
-
+                var json = JsonSerializer.Serialize(request, JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions);
+  Console.WriteLine($"<<<<<<<<<<<<< OUTGOING MSG (CALL): {json}");
                 await _webSocket.SendAsync(
-                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(
-                        JsonSerializer.Serialize(request, JsonHelper.CamelCaseAndIgnoreNullJsonSerializerOptions))),
+                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(json)),
                     WebSocketMessageType.Text,
                     true,
                     _cts.Token);

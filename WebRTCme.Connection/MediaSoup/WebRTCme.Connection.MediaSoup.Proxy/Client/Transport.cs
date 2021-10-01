@@ -43,7 +43,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
         public event EventHandler<DataProducer> OnNewDataProducer;
         public event EventHandler<DataConsumer> OnNewDataConsumer;
 
-        public Transport(Ortc ortc, InternalDirection direction, TransportOptions options, Handler handler,
+        public Transport(Ortc ortc, InternalDirection direction, TransportOptions options, 
             ExtendedRtpCapabilities extendedRtpCapabilities, CanProduceByKind canProduceByKind)
         {
             _ortc = ortc;
@@ -52,7 +52,7 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
             Id = options.Id;
             Closed = false;
             Direction = direction;
-            Handler = handler;
+            Handler =  new Handler(ortc);
             ConnectionState = ConnectionState.New;
             AppData = options.AppData;
             _extendedRtpCapabilities = extendedRtpCapabilities;
@@ -85,7 +85,6 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
 
             Closed = true;
 
-            Handler.Close();
 
             // Close all Producers.
             foreach (var producer in _producers.Values)
@@ -114,6 +113,8 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 dataConsumer.TransportClosed();
             }
             _dataConsumers.Clear();
+
+            Handler.Close();
         }
 
         public Task<IRTCStatsReport> GetStatsAsync()
@@ -152,9 +153,6 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 throw new Exception($"cannot produce {options.Track.Kind}");
             else if (options.Track.ReadyState ==  MediaStreamTrackState.Ended)
                 throw new Exception("track ended");
-            else if (ConnectionState == ConnectionState.New)
-                throw new Exception("no connect listener set into this transport");
-
 
             try
             {
@@ -214,9 +212,9 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                         handlerSendResult.RtpSender,
                         options.Track,
                         handlerSendResult.RtpParameters,
-                        (bool)options.StopTracks,
-                        (bool)options.DisableTrackOnPause,
-                        (bool)options.ZeroRtpOnPause,
+                        options.StopTracks ?? false,
+                        options.DisableTrackOnPause ?? false,
+                        options.ZeroRtpOnPause ?? false,
                         options.AppData);
 
                     _producers.Add(id, producer);
@@ -262,8 +260,6 @@ namespace WebRTCme.Connection.MediaSoup.Proxy.Client
                 throw new Exception("not a receiving Transport");
             else if (options.Kind != MediaKind.Audio && options.Kind != MediaKind.Video)
                 throw new Exception($"invalid kind {options.Kind}");
-            else if (ConnectionState == ConnectionState.New)
-                throw new Exception($"no connect listener set into this transport");
 
             // Ensure the device can consume it.
             var canConsume = _ortc.CanReceive(rtpParameters, _extendedRtpCapabilities);

@@ -71,6 +71,14 @@ namespace WebRTCme.Android
                 _ => throw new NotImplementedException()
             };
 
+        public static Webrtc.PeerConnection.SdpSemantics ToNative(this SdpSemantics sdpSemantics) =>
+            sdpSemantics switch
+            {
+                SdpSemantics.PlanB => Webrtc.PeerConnection.SdpSemantics.PlanB,
+                SdpSemantics.UnifiedPlan => Webrtc.PeerConnection.SdpSemantics.UnifiedPlan,
+                _ => throw new NotImplementedException()
+            };
+
         public static RTCPeerConnectionState FromNative(
             this Webrtc.PeerConnection.PeerConnectionState nativePeerConnectionState)
         {
@@ -175,6 +183,15 @@ namespace WebRTCme.Android
                 return RTCDataChannelState.Closing;
             if (nativeState == Webrtc.DataChannel.State.Closed)
                 return RTCDataChannelState.Closed;
+            throw new ArgumentOutOfRangeException(nameof(nativeState), nativeState, null);
+        }
+
+        public static MediaStreamTrackState FromNative(this Webrtc.MediaStreamTrack.State nativeState)
+        {
+            if (nativeState == Webrtc.MediaStreamTrack.State.Live)
+                return MediaStreamTrackState.Live;
+            if (nativeState == Webrtc.MediaStreamTrack.State.Ended)
+                return MediaStreamTrackState.Ended;
             throw new ArgumentOutOfRangeException(nameof(nativeState), nativeState, null);
         }
     }
